@@ -1389,7 +1389,7 @@ class CoroutineTest(unittest.TestCase):
                 return self
 
             async def __aexit__(self, *e):
-                1/0
+                raise 1/0
 
         async def foo():
             nonlocal CNT
@@ -1415,7 +1415,7 @@ class CoroutineTest(unittest.TestCase):
                 raise NotImplementedError
 
             async def __aexit__(self, *e):
-                1/0
+                raise ValueError
 
         async def foo():
             nonlocal CNT
@@ -1425,7 +1425,7 @@ class CoroutineTest(unittest.TestCase):
         try:
             run_async(foo())
         except NotImplementedError as exc:
-            self.assertTrue(exc.__context__ is None)
+            self.assertIs(exc.__context__, None)
         else:
             self.fail('exception from __aenter__ did not propagate')
 

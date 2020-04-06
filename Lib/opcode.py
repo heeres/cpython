@@ -60,6 +60,8 @@ def_op('ROT_THREE', 3)
 def_op('DUP_TOP', 4)
 def_op('DUP_TOP_TWO', 5)
 def_op('ROT_FOUR', 6)
+def_op('POP_THRICE', 7)
+def_op('SWAP_TOP_THREE', 8)
 
 def_op('NOP', 9)
 def_op('UNARY_POSITIVE', 10)
@@ -187,7 +189,7 @@ def_op('STORE_DEREF', 137)
 hasfree.append(137)
 def_op('DELETE_DEREF', 138)
 hasfree.append(138)
-
+jrel_op('SETUP_EXCEPTION_HANDLER', 139)
 def_op('CALL_FUNCTION_KW', 141)  # #args + #kwargs
 def_op('CALL_FUNCTION_EX', 142)  # Flags
 jrel_op('SETUP_WITH', 143)

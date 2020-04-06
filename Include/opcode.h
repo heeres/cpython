@@ -13,6 +13,8 @@ extern "C" {
 #define DUP_TOP                   4
 #define DUP_TOP_TWO               5
 #define ROT_FOUR                  6
+#define POP_THRICE                7
+#define SWAP_TOP_THREE            8
 #define NOP                       9
 #define UNARY_POSITIVE           10
 #define UNARY_NEGATIVE           11
@@ -115,6 +117,7 @@ extern "C" {
 #define LOAD_DEREF              136
 #define STORE_DEREF             137
 #define DELETE_DEREF            138
+#define SETUP_EXCEPTION_HANDLER 139
 #define CALL_FUNCTION_KW        141
 #define CALL_FUNCTION_EX        142
 #define SETUP_WITH              143
@@ -140,7 +143,7 @@ static uint32_t _PyOpcode_RelativeJump[8] = {
     0U,
     536870912U,
     67125248U,
-    67141632U,
+    67143680U,
     0U,
     0U,
     0U,
@@ -150,18 +153,13 @@ static uint32_t _PyOpcode_Jump[8] = {
     0U,
     536870912U,
     101695488U,
-    67141632U,
+    67143680U,
     0U,
     0U,
     0U,
 };
 #endif /* OPCODE_TABLES */
 
-/* EXCEPT_HANDLER is a special, implicit block type which is created when
-   entering an except handler. It is not an opcode but we define it here
-   as we want it to be available to both frameobject.c and ceval.c, while
-   remaining private.*/
-#define EXCEPT_HANDLER 257
 
 #define HAS_ARG(op) ((op) >= HAVE_ARGUMENT)
 

@@ -749,5 +749,27 @@ class NestedWith(unittest.TestCase):
             self.assertEqual(10, b1)
             self.assertEqual(20, b2)
 
+class EverythingRaises(unittest.TestCase):
+
+    def test_enter_raises(self):
+        class CM:
+            def __enter__(self):
+                raise NotImplementedError
+
+            def __exit__(self, *e):
+                1/0
+
+        def foo():
+            with CM():
+                raise RuntimeError
+
+        try:
+           foo()
+        except NotImplementedError as exc:
+            self.assertIs(exc.__context__, None)
+        else:
+            self.fail('exception from __enter__ did not propagate')
+
+
 if __name__ == '__main__':
     unittest.main()

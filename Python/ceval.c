@@ -1565,7 +1565,7 @@ _PyEval_EvalFrameDefault(PyThreadState *tstate, PyFrameObject *f, int throwflag)
     const _Py_CODEUNIT *next_instr;
     int opcode;        /* Current opcode */
     int oparg;         /* Current opcode argument, if any */
-    PyObject **fastlocals, **freevars;
+    PyObject **fastlocals;
     PyObject *retval = NULL;            /* Return value */
     _Py_atomic_int * const eval_breaker = &tstate->interp->ceval.eval_breaker;
     PyCodeObject *co;
@@ -1642,7 +1642,6 @@ _PyEval_EvalFrameDefault(PyThreadState *tstate, PyFrameObject *f, int throwflag)
     names = co->co_names;
     consts = co->co_consts;
     fastlocals = f->f_localsplus;
-    freevars = f->f_localsplus + co->co_nlocals;
     assert(PyBytes_Check(co->co_code));
     assert(PyBytes_GET_SIZE(co->co_code) <= INT_MAX);
     assert(PyBytes_GET_SIZE(co->co_code) % sizeof(_Py_CODEUNIT) == 0);
@@ -3054,7 +3053,7 @@ _PyEval_EvalFrameDefault(PyThreadState *tstate, PyFrameObject *f, int throwflag)
         }
 
         case TARGET(DELETE_DEREF): {
-            PyObject *cell = freevars[oparg];
+            PyObject *cell = GETLOCAL(oparg);
             PyObject *oldobj = PyCell_GET(cell);
             if (oldobj != NULL) {
                 PyCell_SET(cell, NULL);
@@ -3066,7 +3065,7 @@ _PyEval_EvalFrameDefault(PyThreadState *tstate, PyFrameObject *f, int throwflag)
         }
 
         case TARGET(LOAD_CLOSURE): {
-            PyObject *cell = freevars[oparg];
+            PyObject *cell = GETLOCAL(oparg);
             Py_INCREF(cell);
             PUSH(cell);
             DISPATCH();
@@ -3076,8 +3075,8 @@ _PyEval_EvalFrameDefault(PyThreadState *tstate, PyFrameObject *f, int throwflag)
             PyObject *name, *value, *locals = f->f_locals;
             Py_ssize_t idx;
             assert(locals);
-            assert(oparg >= PyTuple_GET_SIZE(co->co_cellvars));
-            idx = oparg - PyTuple_GET_SIZE(co->co_cellvars);
+            assert(oparg >= PyTuple_GET_SIZE(co->co_cellvars) + co->co_nlocals);
+            idx = oparg - PyTuple_GET_SIZE(co->co_cellvars) - co->co_nlocals;
             assert(idx >= 0 && idx < PyTuple_GET_SIZE(co->co_freevars));
             name = PyTuple_GET_ITEM(co->co_freevars, idx);
             if (PyDict_CheckExact(locals)) {
@@ -3099,7 +3098,7 @@ _PyEval_EvalFrameDefault(PyThreadState *tstate, PyFrameObject *f, int throwflag)
                 }
             }
             if (!value) {
-                PyObject *cell = freevars[oparg];
+                PyObject *cell = GETLOCAL(oparg);
                 value = PyCell_GET(cell);
                 if (value == NULL) {
                     format_exc_unbound(tstate, co, oparg);
@@ -3112,7 +3111,7 @@ _PyEval_EvalFrameDefault(PyThreadState *tstate, PyFrameObject *f, int throwflag)
         }
 
         case TARGET(LOAD_DEREF): {
-            PyObject *cell = freevars[oparg];
+            PyObject *cell = GETLOCAL(oparg);
             PyObject *value = PyCell_GET(cell);
             if (value == NULL) {
                 format_exc_unbound(tstate, co, oparg);
@@ -3125,7 +3124,7 @@ _PyEval_EvalFrameDefault(PyThreadState *tstate, PyFrameObject *f, int throwflag)
 
         case TARGET(STORE_DEREF): {
             PyObject *v = POP();
-            PyObject *cell = freevars[oparg];
+            PyObject *cell = GETLOCAL(oparg);
             PyObject *oldobj = PyCell_GET(cell);
             PyCell_SET(cell, v);
             Py_XDECREF(oldobj);
@@ -4887,7 +4886,6 @@ _PyEval_MakeFrameVector(PyThreadState *tstate,
         return NULL;
     }
     PyObject **fastlocals = f->f_localsplus;
-    PyObject **freevars = f->f_localsplus + co->co_nlocals;
 
     /* Create a dictionary for keyword parameters (**kwags) */
     PyObject *kwdict;
@@ -5090,7 +5088,7 @@ _PyEval_MakeFrameVector(PyThreadState *tstate,
     for (i = 0; i < PyTuple_GET_SIZE(co->co_freevars); ++i) {
         PyObject *o = PyTuple_GET_ITEM(con->fc_closure, i);
         Py_INCREF(o);
-        freevars[PyTuple_GET_SIZE(co->co_cellvars) + i] = o;
+        fastlocals[PyTuple_GET_SIZE(co->co_cellvars) + co->co_nlocals + i] = o;
     }
 
     return f;
@@ -6385,6 +6383,7 @@ format_exc_unbound(PyThreadState *tstate, PyCodeObject *co, int oparg)
     /* Don't stomp existing exception */
     if (_PyErr_Occurred(tstate))
         return;
+    oparg -= co->co_nlocals;
     if (oparg < PyTuple_GET_SIZE(co->co_cellvars)) {
         name = PyTuple_GET_ITEM(co->co_cellvars,
                                 oparg);

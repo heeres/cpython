@@ -7276,6 +7276,24 @@ insert_generator_prefix(struct compiler *c, basicblock *entryblock) {
     return 0;
 }
 
+static void
+offset_derefs(struct assembler *a, int nlocals)
+{
+    for (basicblock *b = a->a_entry; b != NULL; b = b->b_next) {
+        for (int i = 0; i < b->b_iused; i++) {
+            struct instr *inst = &b->b_instr[i];
+            switch(inst->i_opcode) {
+                case LOAD_DEREF:
+                case STORE_DEREF:
+                case DELETE_DEREF:
+                case LOAD_CLASSDEREF:
+                case LOAD_CLOSURE:
+                    inst->i_oparg += nlocals;
+            }
+        }
+    }
+}
+
 static PyCodeObject *
 assemble(struct compiler *c, int addNone)
 {
@@ -7338,6 +7356,11 @@ assemble(struct compiler *c, int addNone)
     if (optimize_cfg(c, &a, consts)) {
         goto error;
     }
+
+    Py_ssize_t nlocals = PyDict_GET_SIZE(c->u->u_varnames);
+    assert(nlocals < INT_MAX);
+    int nlocals_int = Py_SAFE_DOWNCAST(nlocals, Py_ssize_t, int);
+    offset_derefs(&a, nlocals_int);
 
     int maxdepth = stackdepth(c);
     if (maxdepth < 0) {

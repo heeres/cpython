@@ -106,6 +106,8 @@ extern "C" {
 #define LOAD_FAST               124
 #define STORE_FAST              125
 #define DELETE_FAST             126
+#define POP_JUMP_IF_NONE        127
+#define POP_JUMP_IF_NOT_NONE    128
 #define RAISE_VARARGS           130
 #define CALL_FUNCTION           131
 #define MAKE_FUNCTION           132
@@ -148,8 +150,8 @@ static uint32_t _PyOpcode_Jump[8] = {
     0U,
     0U,
     536870912U,
-    101695488U,
-    67141632U,
+    2249179136U,
+    67141633U,
     0U,
     0U,
     0U,

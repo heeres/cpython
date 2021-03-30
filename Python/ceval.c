@@ -3780,6 +3780,28 @@ main_loop:
             DISPATCH();
         }
 
+        case TARGET(POP_JUMP_IF_NONE): {
+            PyObject *target = POP();
+            if (target == Py_None) {
+                Py_DECREF(target);
+                JUMPTO(oparg);
+                DISPATCH();
+            }
+            Py_DECREF(target);
+            DISPATCH();
+        }
+
+        case TARGET(POP_JUMP_IF_NOT_NONE): {
+            PyObject *target = POP();
+            if (target != Py_None) {
+                Py_DECREF(target);
+                JUMPTO(oparg);
+                DISPATCH();
+            }
+            Py_DECREF(target);
+            DISPATCH();
+        }
+
         case TARGET(JUMP_IF_FALSE_OR_POP): {
             PyObject *cond = TOP();
             int err;

@@ -314,7 +314,8 @@ _code_type = type(_write_atomic.__code__)
 #     Python 3.10a2 3432 (Function annotation for MAKE_FUNCTION is changed from dict to tuple bpo-42202)
 #     Python 3.10a2 3433 (RERAISE restores f_lasti if oparg != 0)
 #     Python 3.10a6 3434 (PEP 634: Structural Pattern Matching)
-#     Python 3.10a7 3435 (super-instructions)
+#     Python 3.10a7 3435 (ADD_INT)
+#     Python 3.10a7 3436 (POP_JUMP_IF_NONE, POP_JUMP_IF_NOT_NONE)
 #
 # MAGIC must change whenever the bytecode emitted by the compiler may no
 # longer be understood by older implementations of the eval loop (usually
@@ -323,7 +324,7 @@ _code_type = type(_write_atomic.__code__)
 # Whenever MAGIC_NUMBER is changed, the ranges in the magic_values array
 # in PC/launcher.c must also be updated.
 
-MAGIC_NUMBER = (3435).to_bytes(2, 'little') + b'\r\n'
+MAGIC_NUMBER = (3436).to_bytes(2, 'little') + b'\r\n'
 _RAW_MAGIC_NUMBER = int.from_bytes(MAGIC_NUMBER, 'little')  # For import.c
 
 _PYCACHE = '__pycache__'

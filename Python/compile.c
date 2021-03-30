@@ -1059,6 +1059,8 @@ stack_effect(int opcode, int oparg, int jump)
 
         case POP_JUMP_IF_FALSE:
         case POP_JUMP_IF_TRUE:
+        case POP_JUMP_IF_NONE:
+        case POP_JUMP_IF_NOT_NONE:
             return -1;
 
         case LOAD_GLOBAL:
@@ -6847,7 +6849,7 @@ optimize_basic_block(basicblock *bb, PyObject *consts)
         }
         switch (inst->i_opcode) {
             /* Remove LOAD_CONST const; conditional jump */
-            /* Also optimize LOAD_CONST(small_int) + BINARY_ADD */
+            /* Also some other sequences starting with LOAD_CONST */
             case LOAD_CONST:
             {
                 PyObject* cnt;
@@ -6890,7 +6892,8 @@ optimize_basic_block(basicblock *bb, PyObject *consts)
                         break;
                     case BINARY_ADD:
                         cnt = PyList_GET_ITEM(consts, oparg);
-                        if (PyLong_CheckExact(cnt) && inst->i_lineno == bb->b_instr[i+1].i_lineno) {
+                        if (PyLong_CheckExact(cnt)
+                            && inst->i_lineno == bb->b_instr[i+1].i_lineno) {
                             int ovf = 0;
                             long val = PyLong_AsLongAndOverflow(cnt, &ovf);
                             // TODO: What about larger values?
@@ -6902,6 +6905,31 @@ optimize_basic_block(basicblock *bb, PyObject *consts)
                                 bb->b_instr[i+1].i_opcode = NOP;
                                 break;
                             }
+                        }
+                        break;
+                    case IS_OP:
+                        /* Look for LOAD_CONST(None), IS_OP, POP_JUMP_IF_XXX. */
+                        cnt = PyList_GET_ITEM(consts, oparg);
+                        if (cnt != Py_None
+                            || i+2 >= bb->b_iused
+                            || inst->i_lineno != bb->b_instr[i+1].i_lineno
+                            || inst->i_lineno != bb->b_instr[i+2].i_lineno)
+                        {
+                            break;
+                        }
+                        // IS_OP oparg is 0 for 'is', 1 for 'is not'
+                        int is_op_arg = bb->b_instr[i+1].i_oparg;
+                        int last_opcode = bb->b_instr[i+2].i_opcode;
+                        switch (last_opcode) {
+                        case POP_JUMP_IF_FALSE:
+                        case POP_JUMP_IF_TRUE:
+                            inst->i_opcode = NOP;
+                            bb->b_instr[i+1].i_opcode = NOP;
+                            bb->b_instr[i+2].i_opcode =
+                                is_op_arg ^ (last_opcode == POP_JUMP_IF_TRUE)
+                                ? POP_JUMP_IF_NONE
+                                : POP_JUMP_IF_NOT_NONE;
+                            break;
                         }
                         break;
                 }

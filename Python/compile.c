@@ -75,6 +75,9 @@
 #define SETUP_WITH 253
 #define POP_BLOCK 252
 
+/* Artificial instruction, will be converted to LOAD_FAST */
+#define LOAD_CLOSURE 251
+
 #define IS_TOP_LEVEL_AWAIT(c) ( \
         (c->c_flags->cf_flags & PyCF_ALLOW_TOP_LEVEL_AWAIT) \
         && (c->u->u_ste->ste_type == ModuleBlock))
@@ -1190,8 +1193,6 @@ stack_effect(int opcode, int oparg, int jump)
                 return -1;
 
         /* Closures */
-        case LOAD_CLOSURE:
-            return 1;
         case LOAD_DEREF:
         case LOAD_CLASSDEREF:
             return 1;
@@ -7277,17 +7278,19 @@ insert_generator_prefix(struct compiler *c, basicblock *entryblock) {
 }
 
 static void
-offset_derefs(struct assembler *a, int nlocals)
+offset_derefs(basicblock *entryblock, int nlocals)
 {
-    for (basicblock *b = a->a_entry; b != NULL; b = b->b_next) {
+    for (basicblock *b = entryblock; b != NULL; b = b->b_next) {
         for (int i = 0; i < b->b_iused; i++) {
             struct instr *inst = &b->b_instr[i];
             switch(inst->i_opcode) {
+                case LOAD_CLOSURE:
+                    inst->i_opcode = LOAD_FAST;
+                    /* fall through */
                 case LOAD_DEREF:
                 case STORE_DEREF:
                 case DELETE_DEREF:
                 case LOAD_CLASSDEREF:
-                case LOAD_CLOSURE:
                     inst->i_oparg += nlocals;
             }
         }
@@ -7349,6 +7352,11 @@ assemble(struct compiler *c, int addNone)
     a.a_entry = entryblock;
     a.a_nblocks = nblocks;
 
+    Py_ssize_t nlocals = PyDict_GET_SIZE(c->u->u_varnames);
+    assert(nlocals < INT_MAX);
+    int nlocals_int = Py_SAFE_DOWNCAST(nlocals, Py_ssize_t, int);
+    offset_derefs(entryblock, nlocals_int);
+
     consts = consts_dict_keys_inorder(c->u->u_consts);
     if (consts == NULL) {
         goto error;
@@ -7356,11 +7364,6 @@ assemble(struct compiler *c, int addNone)
     if (optimize_cfg(c, &a, consts)) {
         goto error;
     }
-
-    Py_ssize_t nlocals = PyDict_GET_SIZE(c->u->u_varnames);
-    assert(nlocals < INT_MAX);
-    int nlocals_int = Py_SAFE_DOWNCAST(nlocals, Py_ssize_t, int);
-    offset_derefs(&a, nlocals_int);
 
     int maxdepth = stackdepth(c);
     if (maxdepth < 0) {

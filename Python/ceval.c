@@ -3064,13 +3064,6 @@ _PyEval_EvalFrameDefault(PyThreadState *tstate, PyFrameObject *f, int throwflag)
             goto error;
         }
 
-        case TARGET(LOAD_CLOSURE): {
-            PyObject *cell = GETLOCAL(oparg);
-            Py_INCREF(cell);
-            PUSH(cell);
-            DISPATCH();
-        }
-
         case TARGET(LOAD_CLASSDEREF): {
             PyObject *name, *value, *locals = f->f_locals;
             Py_ssize_t idx;

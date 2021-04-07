@@ -1,5 +1,5 @@
 
-from .clexer import tokenize, LBRACE, LPAREN, LBRACKET, RPAREN, RBRACE, RBRACKET
+from .clexer import tokenize, LBRACE, LPAREN, LBRACKET, RPAREN, RBRACE, RBRACKET, COLON
 
 class CWriter:
     'A writer that understands how to format C code.'
@@ -12,43 +12,40 @@ class CWriter:
         self.newline = False
         self.line_indent = 0
         self.line_text = ""
+        self.label = False
 
     def write(self, txt):
         for tkn in tokenize(txt):
             self._write_token(tkn)
 
     def _write_token(self, tkn):
-        label = False
+        self.label = False
         if tkn.kind in (RBRACE, RPAREN, RBRACKET):
             self.line_indent -= 1
-            self.indent -= 1
         if tkn.kind in (LBRACE, LPAREN, LBRACKET):
-            self.indent += 1
+            self.line_indent += 1
         if tkn.kind == "\n":
-            if label:
-                self.line_indent -= 1
             self._write_line()
-            if label:
-                self.line_indent += 1
             self.prior_indent = self.line_indent
             self.line_text = ""
             self.column = 0
         else:
             if self.column > 0 and self.column < tkn.column:
-                self.out.write(" ") * (tkn.column-self.column)
+                self.line_text += " " * (tkn.column-self.column)
             self.column = tkn.end_column
             self.line_text += tkn.text
-        if tkn.kind = COLON:
-            label = True
-        else:
-            label = False
+        self.label = tkn.kind == COLON
+
+    def write_tokens(self, tkns):
+        for tkn in tkns:
+            self._write_token(tkn)
 
     def close(self):
         if self.line_text:
             self.write_line()
 
     def _write_line(self):
-        indent = min(self.prior_indent, self.line_indent)
+        indent = min(self.prior_indent, self.line_indent)-self.label
         self.out.write(indent * "    ")
         self.out.write(self.line_text.strip())
         self.out.write("\n")

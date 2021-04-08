@@ -46,6 +46,8 @@ class CWriter:
 
     def _write_line(self):
         indent = min(self.prior_indent, self.line_indent)-self.label
-        self.out.write(indent * "    ")
-        self.out.write(self.line_text.strip())
+        self.line_text = self.line_text.strip()
+        if self.line_text and self.line_text[0] != "#":
+            self.out.write(indent * "    ")
+        self.out.write(self.line_text)
         self.out.write("\n")

@@ -212,14 +212,13 @@ def to_text(tkns, dedent=0):
             line, _ = tkn.begin
         l, c = tkn.begin
         #assert(l >= line), (line, txt, start, end)
-        while l > line:
-            line += 1
-            res.append('\n')
+        if l > line:
+            line = l
             col = 1+dedent
         res.append(' '*(c-col))
         res.append(tkn.text)
         line, col = tkn.end
-    return ''.join(res)
+    return ''.join(res).strip()
 
 if __name__ == "__main__":
     import sys

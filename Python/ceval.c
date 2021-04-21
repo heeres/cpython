@@ -1314,6 +1314,16 @@ eval_frame_handle_pending(PyThreadState *tstate)
         DISPATCH_GOTO(); \
     }
 
+// For super-instructions
+#define HALF_DISPATCH(expected_opcode) \
+    { \
+        if (trace_info.cframe.use_tracing OR_DTRACE_LINE OR_LLTRACE) { \
+            goto tracing_dispatch; \
+        } \
+        f->f_lasti = INSTR_OFFSET(); \
+        HALF_NEXTOPARG(expected_opcode); \
+    }
+
 #define CHECK_EVAL_BREAKER() \
     if (_Py_atomic_load_relaxed(eval_breaker)) { \
         continue; \
@@ -1335,6 +1345,12 @@ eval_frame_handle_pending(PyThreadState *tstate)
 #define NEXTOPARG()  do { \
         _Py_CODEUNIT word = *next_instr; \
         opcode = _Py_OPCODE(word); \
+        oparg = _Py_OPARG(word); \
+        next_instr++; \
+    } while (0)
+#define HALF_NEXTOPARG(expected_opcode)  do { \
+        _Py_CODEUNIT word = *next_instr; \
+        assert(_Py_OPCODE(word) == expected_opcode); \
         oparg = _Py_OPARG(word); \
         next_instr++; \
     } while (0)
@@ -1869,9 +1885,7 @@ main_loop:
             }
             Py_INCREF(value);
             PUSH(value);
-            // Decode the next opcode, which we know is a short LOAD_FAST
-            assert(_Py_OPCODE(*next_instr) == LOAD_FAST);
-            oparg = _Py_OPARG(*next_instr++);  // Should this be a macro?
+            HALF_DISPATCH(LOAD_FAST);
             value = GETLOCAL(oparg);
             if (value == NULL) {
                 format_exc_check_arg(tstate, PyExc_UnboundLocalError,
@@ -1900,12 +1914,10 @@ main_loop:
         }
 
         case TARGET(STORE_FAST_LOAD_FAST): {
-            PyObject *value = TOP();
+            PyObject *value = POP();
             Py_INCREF(value);
             SETLOCAL(oparg, value);
-            // Decode the next opcode, which we know is a short LOAD_FAST
-            assert(_Py_OPCODE(*next_instr) == LOAD_FAST);
-            oparg = _Py_OPARG(*next_instr++);  // Should this be a macro?
+            HALF_DISPATCH(LOAD_FAST);
             value = GETLOCAL(oparg);
             if (value == NULL) {
                 format_exc_check_arg(tstate, PyExc_UnboundLocalError,
@@ -1914,7 +1926,7 @@ main_loop:
                 goto error;
             }
             Py_INCREF(value);
-            SET_TOP(value);
+            PUSH(value);
             DISPATCH();
         }
 

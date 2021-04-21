@@ -6481,6 +6481,9 @@ assemble_emit(struct assembler *a, struct instr *i)
         if (last_opcode == LOAD_FAST && i->i_opcode == LOAD_FAST) {
             update_last_opcode(code, LOAD_FAST_LOAD_FAST);
         }
+        else if (last_opcode == STORE_FAST && i->i_opcode == LOAD_FAST) {
+            update_last_opcode(code, STORE_FAST_LOAD_FAST);
+        }
         // TODO: More to come
     }
     a->a_offset += size;

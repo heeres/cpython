@@ -215,5 +215,6 @@ def_op('DICT_UPDATE', 165)
 
 # Super-instructions 167-173
 def_op('LOAD_FAST_LOAD_FAST', 167)
+def_op('STORE_FAST_LOAD_FAST', 168)
 
 del def_op, name_op, jrel_op, jabs_op

@@ -6475,6 +6475,14 @@ assemble_emit(struct assembler *a, struct instr *i)
             return 0;
     }
     code = (_Py_CODEUNIT *)PyBytes_AS_STRING(a->a_bytecode) + a->a_offset;
+    if (size == 1 && a->a_offset > 0) {
+        // Replace last opcode with super-instruction, if appropriate
+        unsigned char last_opcode = _Py_OPCODE(code[-1]);
+        if (last_opcode == LOAD_FAST && i->i_opcode == LOAD_FAST) {
+            update_last_opcode(code, LOAD_FAST_LOAD_FAST);
+        }
+        // TODO: More to come
+    }
     a->a_offset += size;
     write_op_arg(code, i->i_opcode, arg, size);
     return 1;

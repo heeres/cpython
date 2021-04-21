@@ -1858,6 +1858,32 @@ main_loop:
             DISPATCH();
         }
 
+        // Super-instruction
+        case TARGET(LOAD_FAST_LOAD_FAST): {
+            PyObject *value = GETLOCAL(oparg);
+            if (value == NULL) {
+                format_exc_check_arg(tstate, PyExc_UnboundLocalError,
+                                     UNBOUNDLOCAL_ERROR_MSG,
+                                     PyTuple_GetItem(co->co_varnames, oparg));
+                goto error;
+            }
+            Py_INCREF(value);
+            PUSH(value);
+            // Decode the next opcode, which we know is a short LOAD_FAST
+            assert(_Py_OPCODE(*next_instr) == LOAD_FAST);
+            oparg = _Py_OPARG(*next_instr++);  // Should this be a macro?
+            value = GETLOCAL(oparg);
+            if (value == NULL) {
+                format_exc_check_arg(tstate, PyExc_UnboundLocalError,
+                                     UNBOUNDLOCAL_ERROR_MSG,
+                                     PyTuple_GetItem(co->co_varnames, oparg));
+                goto error;
+            }
+            Py_INCREF(value);
+            PUSH(value);
+            DISPATCH();
+        }
+
         case TARGET(LOAD_CONST): {
             PREDICTED(LOAD_CONST);
             PyObject *value = GETITEM(consts, oparg);

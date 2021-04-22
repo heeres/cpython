@@ -1320,7 +1320,7 @@ eval_frame_handle_pending(PyThreadState *tstate)
         if (trace_info.cframe.use_tracing OR_DTRACE_LINE OR_LLTRACE) { \
             goto tracing_dispatch; \
         } \
-        f->f_lasti = INSTR_OFFSET(); \
+        /* f->f_lasti = INSTR_OFFSET(); */ \
         HALF_NEXTOPARG(expected_opcode); \
     }
 

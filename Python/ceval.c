@@ -1304,23 +1304,26 @@ eval_frame_handle_pending(PyThreadState *tstate)
 #define DISPATCH_GOTO() goto dispatch_opcode
 #endif
 
+#define UPDATE_LASTI() f->f_lasti = INSTR_OFFSET()
+
 #define DISPATCH() \
     { \
         if (trace_info.cframe.use_tracing OR_DTRACE_LINE OR_LLTRACE) { \
             goto tracing_dispatch; \
         } \
-        f->f_lasti = INSTR_OFFSET(); \
+        UPDATE_LASTI(); \
         NEXTOPARG(); \
         DISPATCH_GOTO(); \
     }
 
 // For super-instructions
-#define HALF_DISPATCH(expected_opcode) \
+// set_lasti may only be 0 if the expected opcode cannot fail
+#define HALF_DISPATCH(expected_opcode, set_lasti) \
     { \
         if (trace_info.cframe.use_tracing OR_DTRACE_LINE OR_LLTRACE) { \
             goto tracing_dispatch; \
         } \
-        /* f->f_lasti = INSTR_OFFSET(); */ \
+        if (set_lasti) { UPDATE_LASTI(); } \
         HALF_NEXTOPARG(expected_opcode); \
     }
 
@@ -1797,7 +1800,7 @@ main_loop:
         }
 
     tracing_dispatch:
-        f->f_lasti = INSTR_OFFSET();
+        UPDATE_LASTI();
         NEXTOPARG();
 
         if (PyDTrace_LINE_ENABLED())
@@ -1874,7 +1877,7 @@ main_loop:
             DISPATCH();
         }
 
-        // Super-instruction
+        // Super-instructions
         case TARGET(LOAD_FAST_LOAD_FAST): {
             PyObject *value = GETLOCAL(oparg);
             if (value == NULL) {
@@ -1885,7 +1888,7 @@ main_loop:
             }
             Py_INCREF(value);
             PUSH(value);
-            HALF_DISPATCH(LOAD_FAST);
+            HALF_DISPATCH(LOAD_FAST, 1);
             value = GETLOCAL(oparg);
             if (value == NULL) {
                 format_exc_check_arg(tstate, PyExc_UnboundLocalError,
@@ -1896,6 +1899,51 @@ main_loop:
             Py_INCREF(value);
             PUSH(value);
             DISPATCH();
+        }
+
+        case TARGET(LOAD_FAST_LOAD_CONST): {
+            PyObject *value = GETLOCAL(oparg);
+            if (value == NULL) {
+                format_exc_check_arg(tstate, PyExc_UnboundLocalError,
+                                     UNBOUNDLOCAL_ERROR_MSG,
+                                     PyTuple_GetItem(co->co_varnames, oparg));
+                goto error;
+            }
+            Py_INCREF(value);
+            PUSH(value);
+            HALF_DISPATCH(LOAD_CONST, 0);
+            value = GETITEM(consts, oparg);
+            Py_INCREF(value);
+            PUSH(value);
+            DISPATCH();
+        }
+
+        case TARGET(LOAD_FAST_LOAD_ATTR): {
+            PyObject *value = GETLOCAL(oparg);
+            if (value == NULL) {
+                format_exc_check_arg(tstate, PyExc_UnboundLocalError,
+                                     UNBOUNDLOCAL_ERROR_MSG,
+                                     PyTuple_GetItem(co->co_varnames, oparg));
+                goto error;
+            }
+            Py_INCREF(value);
+            PUSH(value);
+            HALF_DISPATCH(LOAD_ATTR, 1);
+            goto load_attr_case;  // Is it worth it?
+        }
+
+        case TARGET(LOAD_FAST_STORE_ATTR): {
+            PyObject *value = GETLOCAL(oparg);
+            if (value == NULL) {
+                format_exc_check_arg(tstate, PyExc_UnboundLocalError,
+                                     UNBOUNDLOCAL_ERROR_MSG,
+                                     PyTuple_GetItem(co->co_varnames, oparg));
+                goto error;
+            }
+            Py_INCREF(value);
+            PUSH(value);
+            HALF_DISPATCH(STORE_ATTR, 1);
+            goto store_attr_case;  // Is it worth it?
         }
 
         case TARGET(LOAD_CONST): {
@@ -1913,11 +1961,12 @@ main_loop:
             DISPATCH();
         }
 
+        // Super-instruction
         case TARGET(STORE_FAST_LOAD_FAST): {
             PyObject *value = POP();
             Py_INCREF(value);
             SETLOCAL(oparg, value);
-            HALF_DISPATCH(LOAD_FAST);
+            HALF_DISPATCH(LOAD_FAST, 1);
             value = GETLOCAL(oparg);
             if (value == NULL) {
                 format_exc_check_arg(tstate, PyExc_UnboundLocalError,
@@ -2905,6 +2954,7 @@ main_loop:
         }
 
         case TARGET(STORE_ATTR): {
+          store_attr_case:
             PyObject *name = GETITEM(names, oparg);
             PyObject *owner = TOP();
             PyObject *v = SECOND();
@@ -3467,6 +3517,7 @@ main_loop:
         }
 
         case TARGET(LOAD_ATTR): {
+          load_attr_case: 
             PyObject *name = GETITEM(names, oparg);
             PyObject *owner = TOP();
 

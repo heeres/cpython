@@ -6478,8 +6478,21 @@ assemble_emit(struct assembler *a, struct instr *i)
     if (size == 1 && a->a_offset > 0) {
         // Replace last opcode with super-instruction, if appropriate
         unsigned char last_opcode = _Py_OPCODE(code[-1]);
-        if (last_opcode == LOAD_FAST && i->i_opcode == LOAD_FAST) {
-            update_last_opcode(code, LOAD_FAST_LOAD_FAST);
+        if (last_opcode == LOAD_FAST) {
+            switch (i->i_opcode) {
+                case LOAD_FAST:
+                    update_last_opcode(code, LOAD_FAST_LOAD_FAST);
+                    break;
+                case LOAD_CONST:
+                    update_last_opcode(code, LOAD_FAST_LOAD_CONST);
+                    break;
+                case LOAD_ATTR:
+                    update_last_opcode(code, LOAD_FAST_LOAD_ATTR);
+                    break;
+                case STORE_ATTR:
+                    update_last_opcode(code, LOAD_FAST_STORE_ATTR);
+                    break;
+            }
         }
         else if (last_opcode == STORE_FAST && i->i_opcode == LOAD_FAST) {
             update_last_opcode(code, STORE_FAST_LOAD_FAST);

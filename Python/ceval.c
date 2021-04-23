@@ -2953,8 +2953,7 @@ main_loop:
             DISPATCH();
         }
 
-        case TARGET(STORE_ATTR): {
-          store_attr_case:
+        case TARGET(STORE_ATTR): store_attr_case: {
             PyObject *name = GETITEM(names, oparg);
             PyObject *owner = TOP();
             PyObject *v = SECOND();
@@ -3516,8 +3515,7 @@ main_loop:
             DISPATCH();
         }
 
-        case TARGET(LOAD_ATTR): {
-          load_attr_case: 
+        case TARGET(LOAD_ATTR): load_attr_case: {
             PyObject *name = GETITEM(names, oparg);
             PyObject *owner = TOP();
 

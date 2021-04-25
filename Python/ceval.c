@@ -1964,7 +1964,6 @@ main_loop:
         // Super-instruction
         case TARGET(STORE_FAST_LOAD_FAST): {
             PyObject *value = POP();
-            Py_INCREF(value);
             SETLOCAL(oparg, value);
             HALF_DISPATCH(LOAD_FAST, 1);
             value = GETLOCAL(oparg);

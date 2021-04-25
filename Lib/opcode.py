@@ -215,11 +215,14 @@ def_op('DICT_UPDATE', 165)
 
 # Super-instructions 167-173
 def_op('LOAD_FAST_LOAD_FAST', 167)
+haslocal.append(167)
 def_op('STORE_FAST_LOAD_FAST', 168)
+haslocal.append(168)
 def_op('LOAD_FAST_LOAD_ATTR', 169)
+haslocal.append(169)
 def_op('LOAD_FAST_LOAD_CONST', 170)
-# def_op('LOAD_GLOBAL_LOAD_FAST', 171)  # Unused
-def_op('LOAD_FAST_STORE_ATTR', 172)
-# def_op('LOAD_GLOBAL_CALL_FUNCTION', 173)  # Unused
+haslocal.append(170)
+def_op('LOAD_FAST_STORE_ATTR', 171)
+haslocal.append(171)
 
 del def_op, name_op, jrel_op, jabs_op

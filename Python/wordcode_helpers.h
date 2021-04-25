@@ -49,7 +49,7 @@ write_op_arg(_Py_CODEUNIT *codestr, unsigned char opcode,
 }
 
 static void
-update_last_opcode(_Py_CODEUNIT *codestr, unsigned char opcode)
+update_last_opcode(_Py_CODEUNIT *codestr, int i, unsigned char opcode)
 {
-    codestr[-1] = PACKOPARG(opcode, _Py_OPARG(codestr[-1]));
+    codestr[i] = PACKOPARG(opcode, _Py_OPARG(codestr[i]));
 }

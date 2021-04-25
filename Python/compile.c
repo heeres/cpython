@@ -6475,33 +6475,57 @@ assemble_emit(struct assembler *a, struct instr *i)
             return 0;
     }
     code = (_Py_CODEUNIT *)PyBytes_AS_STRING(a->a_bytecode) + a->a_offset;
-    if (size == 1 && a->a_offset > 0) {
-        // Replace last opcode with super-instruction, if appropriate
-        unsigned char last_opcode = _Py_OPCODE(code[-1]);
-        if (last_opcode == LOAD_FAST) {
-            switch (i->i_opcode) {
-                case LOAD_FAST:
-                    update_last_opcode(code, LOAD_FAST_LOAD_FAST);
-                    break;
-                case LOAD_CONST:
-                    update_last_opcode(code, LOAD_FAST_LOAD_CONST);
-                    break;
-                case LOAD_ATTR:
-                    update_last_opcode(code, LOAD_FAST_LOAD_ATTR);
-                    break;
-                case STORE_ATTR:
-                    update_last_opcode(code, LOAD_FAST_STORE_ATTR);
-                    break;
-            }
-        }
-        else if (last_opcode == STORE_FAST && i->i_opcode == LOAD_FAST) {
-            update_last_opcode(code, STORE_FAST_LOAD_FAST);
-        }
-        // TODO: More to come
-    }
     a->a_offset += size;
     write_op_arg(code, i->i_opcode, arg, size);
     return 1;
+}
+
+static void
+assemble_add_super_instructions(struct assembler *a)
+{
+    _Py_CODEUNIT *code = (_Py_CODEUNIT *)PyBytes_AS_STRING(a->a_bytecode);
+    for (int i = 0; i + 1 < a->a_offset; i++) {
+        int last_opcode = _Py_OPCODE(code[i]);
+        int next_opcode = _Py_OPCODE(code[i+1]);
+        switch (last_opcode) {
+
+            case FOR_ITER:
+                // Don't add a super-instruction right after FOR_ITER
+                i++;
+                break;
+
+            case LOAD_FAST:
+                switch (next_opcode) {
+                    case LOAD_FAST:
+                        update_last_opcode(code, i, LOAD_FAST_LOAD_FAST);
+                        i++;
+                        break;
+                    case LOAD_CONST:
+                        update_last_opcode(code, i, LOAD_FAST_LOAD_CONST);
+                        i++;
+                        break;
+                    case LOAD_ATTR:
+                        update_last_opcode(code, i, LOAD_FAST_LOAD_ATTR);
+                        i++;
+                        break;
+                    case STORE_ATTR:
+                        update_last_opcode(code, i, LOAD_FAST_STORE_ATTR);
+                        i++;
+                        break;
+                }
+                break;
+
+            case STORE_FAST:
+                switch (next_opcode) {
+                    case LOAD_FAST:
+                        update_last_opcode(code, i, STORE_FAST_LOAD_FAST);
+                        i++;
+                        break;
+                }
+                break;
+
+        }
+    }
 }
 
 static void
@@ -6900,6 +6924,7 @@ assemble(struct compiler *c, int addNone)
             if (!assemble_emit(&a, &b->b_instr[j]))
                 goto error;
     }
+    assemble_add_super_instructions(&a);
     if (!assemble_line_range(&a)) {
         return 0;
     }

@@ -1320,10 +1320,10 @@ eval_frame_handle_pending(PyThreadState *tstate)
 // set_lasti may only be 0 if the expected opcode cannot fail
 #define HALF_DISPATCH(expected_opcode, set_lasti) \
     { \
-        if (trace_info.cframe.use_tracing OR_DTRACE_LINE OR_LLTRACE) { \
-            goto tracing_dispatch; \
-        } \
-        if (set_lasti) { UPDATE_LASTI(); } \
+        /* if (trace_info.cframe.use_tracing OR_DTRACE_LINE OR_LLTRACE) { */ \
+        /*     goto tracing_dispatch; */ \
+        /* } */ \
+        /* if (set_lasti) { UPDATE_LASTI(); } */ \
         HALF_NEXTOPARG(expected_opcode); \
     }
 

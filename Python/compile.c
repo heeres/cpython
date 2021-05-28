@@ -3529,6 +3529,48 @@ compiler_visit_stmt_expr(struct compiler *c, expr_ty value)
 }
 
 static int
+compiler_expand_unpacked_assign(struct compiler *c, expr_ty tgt, expr_ty src)
+{
+    // Generate direct element assignments for constructed tuples/lists
+    if (src->kind == Tuple_kind || src->kind == List_kind)
+    {
+        asdl_expr_seq *tgt_elts = tgt->kind == Tuple_kind ? tgt->v.Tuple.elts : tgt->v.List.elts;
+        asdl_expr_seq *src_elts = src->kind == Tuple_kind ? src->v.Tuple.elts : src->v.List.elts;
+        int tgt_len = asdl_seq_LEN(tgt_elts);
+        if (tgt_len != asdl_seq_LEN(src_elts))
+            return 0;
+
+        for (int j=0; j<tgt_len; ++j)
+        {
+            expr_ty src_elt = asdl_seq_GET(src_elts, j);
+            expr_ty tgt_elt = asdl_seq_GET(tgt_elts, j);
+            VISIT(c, expr, src_elt);
+            compiler_nameop(c, tgt_elt->v.Name.id, Store);
+        }
+        return 1;
+    }
+    // Generate direct element assignments for constant tuple if length <= 2
+    if (src->kind == Constant_kind && PyTuple_CheckExact(src->v.Constant.value) && PyTuple_Size(src->v.Constant.value) <= 2)
+    {
+        asdl_expr_seq *tgt_elts = tgt->kind == Tuple_kind ? tgt->v.Tuple.elts : tgt->v.List.elts;
+        int tgt_len = asdl_seq_LEN(tgt_elts);
+        if (tgt_len != PyTuple_Size(src->v.Constant.value))
+            return 0;
+
+        for (int j=0; j<tgt_len; ++j)
+        {
+            PyObject* src_elt = PyTuple_GetItem(src->v.Constant.value, j);
+            expr_ty tgt_elt = asdl_seq_GET(tgt_elts, j);
+            ADDOP_LOAD_CONST(c, src_elt);
+            compiler_nameop(c, tgt_elt->v.Name.id, Store);
+        }
+        return 1;
+    }
+    // Did nothing
+    return 0;
+}
+
+static int
 compiler_visit_stmt(struct compiler *c, stmt_ty s)
 {
     Py_ssize_t i, n;
@@ -3547,7 +3589,16 @@ compiler_visit_stmt(struct compiler *c, stmt_ty s)
         VISIT_SEQ(c, expr, s->v.Delete.targets)
         break;
     case Assign_kind:
+    {
+        expr_ty target0 = asdl_seq_GET(s->v.Assign.targets, 0);
+        int tgt_unpack = target0->kind == Tuple_kind || target0->kind == List_kind;
         n = asdl_seq_LEN(s->v.Assign.targets);
+        if (n == 1 && tgt_unpack)
+        {
+            if (compiler_expand_unpacked_assign(c, target0, s->v.Assign.value))
+                return 1;
+        }
+
         VISIT(c, expr, s->v.Assign.value);
         for (i = 0; i < n; i++) {
             if (i < n - 1)
@@ -3556,6 +3607,7 @@ compiler_visit_stmt(struct compiler *c, stmt_ty s)
                   (expr_ty)asdl_seq_GET(s->v.Assign.targets, i));
         }
         break;
+    }
     case AugAssign_kind:
         return compiler_augassign(c, s);
     case AnnAssign_kind:

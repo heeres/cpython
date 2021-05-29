@@ -3539,29 +3539,39 @@ compiler_expand_unpacked_assign(struct compiler *c, expr_ty tgt, expr_ty src)
     {
         asdl_expr_seq *src_elts = src->kind == Tuple_kind ? src->v.Tuple.elts : src->v.List.elts;
         src_len = asdl_seq_LEN(src_elts);
-        if (tgt_len != src_len)
-            return 0;
-        for (int j=tgt_len-1; j>=0; --j)
+        if (tgt_len == src_len)
         {
-            expr_ty src_elt = asdl_seq_GET(src_elts, j);
-            VISIT(c, expr, src_elt);
+            for (int j=tgt_len-1; j>=0; --j)
+            {
+                expr_ty src_elt = asdl_seq_GET(src_elts, j);
+                VISIT(c, expr, src_elt);
+            }
         }
     }
     // Push constant tuple on stack directly if length <= 2
-    else if (src->kind == Constant_kind && PyTuple_CheckExact(src->v.Constant.value) && PyTuple_Size(src->v.Constant.value) <= 2)
+    else if (src->kind == Constant_kind && PyTuple_CheckExact(src->v.Constant.value))
     {
         src_len = PyTuple_Size(src->v.Constant.value);
-        if (tgt_len != src_len)
-            return 0;
-        for (int j=tgt_len-1; j>=0; --j)
+        if (tgt_len == src_len)
         {
-            PyObject* src_elt = PyTuple_GetItem(src->v.Constant.value, j);
-            ADDOP_LOAD_CONST(c, src_elt);
+            if (src_len > 2)
+                return 0;
+            for (int j=tgt_len-1; j>=0; --j)
+            {
+                PyObject* src_elt = PyTuple_GetItem(src->v.Constant.value, j);
+                ADDOP_LOAD_CONST(c, src_elt);
+            }
         }
     }
     // Did nothing
     else
         return 0;
+
+    if (tgt_len != src_len)
+    {
+        compiler_error(c, "not enough values to unpack (expected %d, got %d)", tgt_len, src_len);
+        return -1;
+    }
 
     // Pop unpacking assignment from stack
     for (int j=0; j<tgt_len; ++j)
@@ -3597,8 +3607,11 @@ compiler_visit_stmt(struct compiler *c, stmt_ty s)
         n = asdl_seq_LEN(s->v.Assign.targets);
         if (n == 1 && tgt_unpack)
         {
-            if (compiler_expand_unpacked_assign(c, target0, s->v.Assign.value))
+            int ret = compiler_expand_unpacked_assign(c, target0, s->v.Assign.value);
+            if (ret > 0)
                 return 1;
+            else if (ret < 0)
+                return 0;
         }
 
         VISIT(c, expr, s->v.Assign.value);

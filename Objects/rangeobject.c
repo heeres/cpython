@@ -770,16 +770,40 @@ typedef struct {
         long    start;
         long    step;
         long    len;
+        PyObject *fast_obj;
 } rangeiterobject;
 
 static PyObject *
 rangeiter_next(rangeiterobject *r)
 {
     if (r->index < r->len)
+    {
         /* cast to unsigned to avoid possible signed overflow
            in intermediate calculations. */
-        return PyLong_FromLong((long)(r->start +
-                                      (unsigned long)(r->index++) * r->step));
+        long cur_val = (long)(r->start + (unsigned long)(r->index++) * r->step);
+
+        // If we (and globals or fastlocals) are the only one holding a reference, modify object in place
+        if (Py_REFCNT(r->fast_obj) <= 2)
+        {
+            PyLongObject *l = (PyLongObject*)r->fast_obj;
+            Py_INCREF(r->fast_obj);     // Ref count will be decremented when replacing the previous copy
+            if ( cur_val < 0 )
+            {
+                l->ob_digit[0] = -cur_val;
+                Py_SET_SIZE(l, -1);
+            }
+            else
+            {
+                l->ob_digit[0] = cur_val;
+                Py_SET_SIZE(l, 1);
+            }
+            return r->fast_obj;
+        }
+        else
+        {
+            return PyLong_FromLong(cur_val);
+        }
+    }
     return NULL;
 }
 
@@ -837,6 +861,13 @@ rangeiter_setstate(rangeiterobject *r, PyObject *state)
     Py_RETURN_NONE;
 }
 
+static void
+rangeiter_dealloc(rangeiterobject *r)
+{
+    Py_XDECREF(r->fast_obj);
+    PyObject_Free(r);
+}
+
 PyDoc_STRVAR(reduce_doc, "Return state information for pickling.");
 PyDoc_STRVAR(setstate_doc, "Set state information for unpickling.");
 
@@ -856,7 +887,7 @@ PyTypeObject PyRangeIter_Type = {
         sizeof(rangeiterobject),                /* tp_basicsize */
         0,                                      /* tp_itemsize */
         /* methods */
-        (destructor)PyObject_Del,               /* tp_dealloc */
+        (destructor)rangeiter_dealloc,          /* tp_dealloc */
         0,                                      /* tp_vectorcall_offset */
         0,                                      /* tp_getattr */
         0,                                      /* tp_setattr */
@@ -921,6 +952,16 @@ fast_range_iter(long start, long stop, long step)
     unsigned long ulen;
     if (it == NULL)
         return NULL;
+
+    // Allocate fast return object; make sure it's not an interned PyLong
+    // We hold a reference that we have to release in _dealloc
+    it->fast_obj = (PyObject*)PyLong_FromLong(10000);
+    if (it->fast_obj == NULL)
+    {
+        Py_DECREF(it);
+        return NULL;
+    }
+
     it->start = start;
     it->step = step;
     ulen = get_len_of_range(start, stop, step);

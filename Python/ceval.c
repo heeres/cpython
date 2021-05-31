@@ -1842,7 +1842,6 @@ _PyEval_EvalFrameDefault(PyThreadState *tstate, PyFrameObject *f, int throwflag)
         }
 
         case TARGET(STORE_FAST): {
-            PREDICTED(STORE_FAST);
             PyObject *value = POP();
             SETLOCAL(oparg, value);
             DISPATCH();
@@ -3995,14 +3994,38 @@ _PyEval_EvalFrameDefault(PyThreadState *tstate, PyFrameObject *f, int throwflag)
         case TARGET(FOR_ITER): {
             PREDICTED(FOR_ITER);
             /* before: [iter]; after: [iter, iter()] *or* [] */
-            PyObject *iter = TOP();
-            PyObject *next = (*Py_TYPE(iter)->tp_iternext)(iter);
+            PyObject *cur_local, *next, *iter = TOP();
+
+            // If FOR_ITER is followed by STORE_FAST, pre-release a reference on PyLong before
+            // calling iternext, indicating that the target object can be reused (e.g. for range())
+            int for_target, for_store_fast = _Py_OPCODE(*next_instr) == STORE_FAST ? 1 : 0;
+            if (for_store_fast) {
+                for_target = _Py_OPARG(*next_instr);
+                cur_local = GETLOCAL(for_target);
+                // Can't do this when ref count == 1, because an object should persist after last iteration
+                if (cur_local && PyLong_Check(cur_local) && Py_REFCNT(cur_local)>1) {
+                    Py_DECREF(cur_local);
+                    for_store_fast = 2;         // Indicate reference count was already decremented
+                }
+            }
+            next = (*Py_TYPE(iter)->tp_iternext)(iter);
             if (next != NULL) {
-                PUSH(next);
-                PREDICT(STORE_FAST);
-                PREDICT(UNPACK_SEQUENCE);
+                if (for_store_fast) {
+                    if (for_store_fast == 2)    // PyLong with ref count that was >1, no need for additional book keeping
+                        GETLOCAL(for_target) = next;
+                    else
+                        SETLOCAL(for_target, next);
+                    next_instr++;               // STORE_FAST already performed
+                }
+                else {
+                    PUSH(next);
+                    PREDICT(UNPACK_SEQUENCE);
+                }
                 DISPATCH();
             }
+            // Restore reference count of local if it was pre-decremented
+            if (for_store_fast == 2)
+                Py_INCREF(cur_local);
             if (_PyErr_Occurred(tstate)) {
                 if (!_PyErr_ExceptionMatches(tstate, PyExc_StopIteration)) {
                     goto error;

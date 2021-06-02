@@ -20,6 +20,9 @@ class int "PyObject *" "&PyLong_Type"
 [clinic start generated code]*/
 /*[clinic end generated code: output=da39a3ee5e6b4b0d input=ec0275e3422a36e3]*/
 
+#include "pycore_pymem.h"           // For _Py_tracemalloc_config.
+extern PyMemAllocatorEx _PyObject;  // in obmalloc.c
+
 #define NSMALLNEGINTS           _PY_NSMALLNEGINTS
 #define NSMALLPOSINTS           _PY_NSMALLPOSINTS
 
@@ -195,12 +198,24 @@ PyLong_FromLong(long ival)
 
     /* Fast path for single-digit ints */
     if (!(abs_ival >> PyLong_SHIFT)) {
-        v = _PyLong_New(1);
-        if (v) {
-            Py_SET_SIZE(v, sign);
-            v->ob_digit[0] = Py_SAFE_DOWNCAST(
-                abs_ival, unsigned long, digit);
+        v = (PyLongObject*)_PyObject.malloc(_PyObject.ctx, offsetof(PyLongObject, ob_digit) + sizeof(digit));
+        if (!v) {
+            PyErr_NoMemory();
+            return NULL;
         }
+        Py_SET_SIZE(v, sign);
+        if (_Py_tracemalloc_config.tracing) {
+            _PyTraceMalloc_NewReference((PyObject*)v);
+        }
+#ifdef Py_REF_DEBUG
+        _Py_RefTotal++;
+#endif
+        Py_SET_REFCNT(v, 1);
+#ifdef Py_TRACE_REFS
+        _Py_AddToAllObjects((PyObject*)v, 1);
+#endif
+        Py_SET_TYPE(v, &PyLong_Type);
+        v->ob_digit[0] = Py_SAFE_DOWNCAST(abs_ival, unsigned long, digit);
         return (PyObject*)v;
     }
 

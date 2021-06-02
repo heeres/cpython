@@ -213,11 +213,11 @@ static struct {
 #ifdef Py_DEBUG
 static PyMemAllocatorEx _PyMem_Raw = PYDBGRAW_ALLOC;
 static PyMemAllocatorEx _PyMem = PYDBGMEM_ALLOC;
-static PyMemAllocatorEx _PyObject = PYDBGOBJ_ALLOC;
+PyMemAllocatorEx _PyObject = PYDBGOBJ_ALLOC;
 #else
 static PyMemAllocatorEx _PyMem_Raw = PYRAW_ALLOC;
 static PyMemAllocatorEx _PyMem = PYMEM_ALLOC;
-static PyMemAllocatorEx _PyObject = PYOBJ_ALLOC;
+PyMemAllocatorEx _PyObject = PYOBJ_ALLOC;
 #endif
 
 

@@ -1452,12 +1452,18 @@ _PyLong_Size_t_Converter(PyObject *obj, void *ptr)
     return 1;
 }
 
-
+#ifdef Py_LIMITED_API
 #define CHECK_BINOP(v,w)                                \
     do {                                                \
-        if (!PyLong_Check(v) || !PyLong_Check(w))       \
+        if (!(PyType_GetFlags(Py_TYPE(v)) & PyType_GetFlags(Py_TYPE(w)) & Py_TPFLAGS_LONG_SUBCLASS)) \
+    } while(0)
+#else
+#define CHECK_BINOP(v,w)                                \
+    do {                                                \
+        if (!(Py_TYPE(v)->tp_flags & Py_TYPE(w)->tp_flags & Py_TPFLAGS_LONG_SUBCLASS)) \
             Py_RETURN_NOTIMPLEMENTED;                   \
     } while(0)
+#endif
 
 /* x[0:m] and y[0:n] are digit vectors, LSD first, m >= n required.  x[0:n]
  * is modified in place, by adding y to it.  Carries are propagated as far as

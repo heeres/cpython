@@ -815,7 +815,24 @@ static PySequenceMethods tuple_as_sequence = {
 static PyObject*
 tuplesubscript(PyTupleObject* self, PyObject* item)
 {
-    if (_PyIndex_Check(item)) {
+    if (PyLong_Check(item)) {
+        long idx;
+        PyLongObject* l = (PyLongObject*)item;
+        if (Py_SIZE(l) == 0)
+            return tupleitem(self, 0);
+        else if (Py_SIZE(l) == 1)
+            return tupleitem(self, l->ob_digit[0]);
+        else if (Py_SIZE(l) == -1)
+            return tupleitem(self, PyTuple_GET_SIZE(self) - l->ob_digit[0]);
+        else {
+            idx = PyLong_AsLong(item);
+            if (idx == -1 && PyErr_Occurred())
+                return NULL;
+            if (idx < 0)
+                idx += PyTuple_GET_SIZE(self);
+            return tupleitem(self, idx);
+        }
+    } else if (_PyIndex_Check(item)) {
         Py_ssize_t i = PyNumber_AsSsize_t(item, PyExc_IndexError);
         if (i == -1 && PyErr_Occurred())
             return NULL;
